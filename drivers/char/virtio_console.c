@@ -1466,6 +1466,7 @@ static void control_work_handler(struct work_struct *work)
 	portdev = container_of(work, struct ports_device, control_work);
 	vq = portdev->c_ivq;
 
+ start:
 	spin_lock(&portdev->cvq_lock);
 	while ((buf = virtqueue_get_buf(vq, &len))) {
 		spin_unlock(&portdev->cvq_lock);
@@ -1483,6 +1484,10 @@ static void control_work_handler(struct work_struct *work)
 		}
 	}
 	spin_unlock(&portdev->cvq_lock);
+	if (unlikely(!virtqueue_enable_cb(vq))) {
+		virtqueue_disable_cb(vq);
+		goto start;
+	}
 }
 
 static void out_intr(struct virtqueue *vq)
@@ -1533,6 +1538,7 @@ static void control_intr(struct virtqueue *vq)
 {
 	struct ports_device *portdev;
 
+	virtqueue_disable_cb(vq);
 	portdev = vq->vdev->priv;
 	schedule_work(&portdev->control_work);
 }
